@@ -1,0 +1,285 @@
+; MSP430FR6989 - Encender LEDs mientras se mantiene presionado S1 o S2
+; S1 (P1.1) controla LED rojo (P1.0)
+; S2 (P1.2) controla LED verde (P9.7)
+
+            .cdecls C,LIST,"msp430.h"
+
+
+            .text
+            .def    RESET
+;----------------------------------------
+
+pos1	.equ	9      ; Alphanumeric A1 begins at S18
+pos2	.equ	5      ; Alphanumeric A2 begins at S10
+pos3 	.equ	3      ; Alphanumeric A3 begins at S6
+pos4 	.equ	18     ; Alphanumeric A4 begins at S36
+pos5	.equ	14     ; Alphanumeric A5 begins at S28
+pos6 	.equ	7      ; Alphanumeric A6 begins at S14
+
+; Define high and low byte values to generate chars A, N, G, E, L, I, C, A
+; angelica         T     E     A     M     0      3  space space space   A     N     G     E     L     I     C     A   space  space space  C     A     M     I     L    A    space  space space  I      S    A     N      D    E     R   space  space space  E     D      G     A    R     D     O    space space space 
+stringNamesH	.byte 0x80, 0x9F, 0xEF, 0x6C, 0xFC, 0xF3, 0x00, 0x00, 0x00, 0xEF, 0x6C, 0xBD, 0x9F, 0x1C, 0x90, 0x9C, 0xEF, 0x00, 0x00, 0x00, 0x9C, 0xEF, 0x6C, 0x90, 0x1C, 0xEF, 0x00, 0x00, 0x00, 0x90, 0xB7, 0xEF, 0x6C, 0xF0, 0x9F, 0xCF, 0x00, 0x00, 0x00, 0x9F, 0xF0, 0xBD, 0xEF, 0xCF, 0xF0, 0xFC, 0x00, 0x00, 0x00, 0x80, 0x9F, 0xEF, 0x6C, 0xFC, 0xF3
+stringNamesL	.byte 0x50, 0x00, 0x00, 0xA0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x82, 0x00, 0x00, 0x00, 0x50, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xA0, 0x50, 0x00, 0x00, 0x00, 0x00, 0x00, 0x50, 0x00, 0x00, 0x82, 0x50, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x50, 0x00, 0x00, 0x02, 0x50, 0x00, 0x00, 0x00, 0x00, 0x50, 0x00, 0x00, 0xA0, 0x00, 0x00
+
+            .data
+            .global boton1Presionado
+boton1Presionado: .byte 0        ; 0 = S1 no presionado, 1 = S1 presionado
+            .global boton2Presionado
+boton2Presionado: .byte 0        ; 0 = S1 no presionado, 1 = S1 presionado
+            .global modo
+modo:       .byte 0      ; Empieza en modo 0
+
+
+            .text
+RESET:
+            mov.w   #__STACK_END, SP          ; Inicializa el stack
+            mov.w   #WDTPW | WDTHOLD, &WDTCTL ; Detiene Watchdog
+
+            ;--------------------------
+            ; CONFIGURACIÓN DE LEDs
+            CALL    #Init_LEDS
+
+            ;--------------------------
+            ; CONFIGURACIÓN DE BOTONES S1 y S2
+            CALL    #Init_Buttons
+            CALL    #Init_LCD
+            CALL    #Init_Display
+
+            ; Configura interrupciones por flanco de BAJADA (botón presionado)
+             CALL #Init_Interruptions
+
+            bic.w   #LOCKLPM5, &PM5CTL0       ; Desbloquea GPIOs
+
+            nop
+            bis.w   #GIE, SR                  ; Habilita interrupciones globales
+            nop
+
+MAIN_LOOP:
+    mov.b   &modo, R10
+    cmp.b   #0, R10
+    jne     skip_scroll
+
+    mov.b   &boton1Presionado, R11
+    cmp.b   #1, R11
+    jne     skip_scroll
+    CALL    #Scroll
+    CALL    #DELAY
+
+
+skip_scroll:
+    jmp     MAIN_LOOP
+
+
+
+
+;===============
+;    Inits Individuales
+;============
+Init_LEDS
+    bis.b   #BIT0, &P1DIR             ; P1.0 como salida (LED rojo)
+    bic.b   #BIT0, &P1OUT             ; Apagado al inicio
+
+    bis.b   #BIT7, &P9DIR             ; P9.7 como salida (LED verde)
+    bic.b   #BIT7, &P9OUT             ; Apagado al inic
+    RET
+
+Init_Interruptions:
+    bic.b   #BIT1 + BIT2, &P1IFG     ; Limpia banderas previas
+    bis.b   #BIT1 + BIT2, &P1IES     ; Flanco de bajada
+    bis.b   #BIT1 + BIT2, &P1IE      ; Habilita interrupciones
+    RET
+
+
+Init_Buttons
+; CONFIGURACIÓN DE BOTONES S1 y S2
+    bis.b   #BIT1 + BIT2, &P1REN      ; Habilita resistencia en P1.1 y P1.2
+    bis.b   #BIT1 + BIT2, &P1OUT      ; Pull-up activado
+
+    bic.b   #BIT1 + BIT2, &P1DIR      ; P1.1 y P1.2 como entrada
+    RET
+
+Init_LCD
+
+    MOV.W   #0xFFFF,&LCDCPCTL0  ; Initialize LCD segments 0 - 21; 26 - 43
+    MOV.W   #0xFC3F,&LCDCPCTL1
+    MOV.W   #0x0FFF,&LCDCPCTL2
+   
+    MOV.W   #0x041E,&LCDCCTL0   ; Initialize LCD_C
+    MOV.W   #0x0208,&LCDCVCTL
+    MOV.W   #0x8000,&LCDCCPCTL  
+    MOV.W   #2,&LCDCMEMCTL      
+
+    BIS.W   #1,&LCDCCTL0        ; Turn LCD on
+    RET
+
+Init_Display:
+    MOV.B   #0, R6
+    CALL    #UPDATE_DISPLAY
+    RET
+
+
+;----------------------------------------
+; Interrupcion
+;---------
+PORT1_ISR:
+    ; ========== S1 (P1.1) ==========
+    bit.b   #BIT1, &P1IFG
+    jz      check_S2
+    bic.b   #BIT1, &P1IFG             ; Limpia bandera
+
+    bit.b   #BIT1, &P1IN
+    jnz     s1_subida                 ; Si P1.1 está en HIGH, es subida
+
+s1_bajada:
+    bis.b   #BIT0, &P1OUT             ; Enciende LED rojo
+    mov.b   #1, &boton1Presionado      ; Bandera en 1
+    bic.b   #BIT1, &P1IES             ; Próxima interrupción: subida
+    jmp     fin_ISR
+
+s1_subida:
+    bic.b   #BIT0, &P1OUT             ; Apaga LED rojo
+    mov.b   #0, &boton1Presionado      ; Bandera en 0
+    bis.b   #BIT1, &P1IES             ; Próxima interrupción: bajada
+    jmp     fin_ISR
+
+; ========== S2 (P1.2) ==========
+check_S2:
+    bit.b   #BIT2, &P1IFG
+    jz      fin_ISR
+    bic.b   #BIT2, &P1IFG
+
+    bit.b   #BIT2, &P1IN
+    jnz     s2_subida
+
+s2_bajada:
+
+    bis.b   #BIT7, &P9OUT             ; Enciende LED verde
+    bic.b   #BIT2, &P1IES             ; Próxima interrupción: subida
+    mov.b   #1, &boton2Presionado      ; Bandera en 1
+    jmp     fin_ISR
+
+s2_subida:
+    bic.b   #BIT7, &P9OUT             ; Apaga LED verde
+    bis.b   #BIT2, &P1IES             ; Próxima interrupción: bajada
+    mov.b   #0, &boton1Presionado      ; Bandera en 0
+    jmp     fin_ISR
+
+fin_ISR:
+    reti
+
+
+
+;========================
+; subrutinas
+;================
+    
+;-------------------------------------------------------------------------------------
+; Subroutine: Scroll
+; Purpose: Se encarga de mover el texto en la pantalla hacia la izquierda
+;------------------------------------------------------------------------------------
+Scroll:
+    CALL    #UPDATE_DISPLAY
+    CALL    #DELAY
+    CALL    #DELAY
+    CALL    #Update_Position
+    RET
+
+;-------------------------------------------------------
+; Subroutine: Update_Position
+; Purpose: Aumenta el índice R6 para avanzar el scroll. Si ya llegamos al final del string
+;   entonces reinicia el índice a 0 para que el scroll sea cíclico.
+;-------------------------------------------------------
+Update_Position:
+    INC.B   R6
+    CMP.B   #44, R6 ;aqui
+    JNE     no_reset
+    MOV.B   #0, R6
+no_reset:
+    RET
+
+
+;-------------------------------------------------------------------------------
+; Subroutine: UPDATE_DISPLAY
+; Purpose: Update the LCD with 6 characters starting at the given index
+; Input: R6 = scroll position (0 to 2)
+;-------------------------------------------------------------------------------
+UPDATE_DISPLAY:
+            MOV.B   #pos1, R14         
+            MOV.B   R6, R5             
+
+; --- Dígito 1 ---
+            MOV.B   stringNamesH(R5), 0x0A20(R14) 
+            MOV.B   stringNamesL(R5), 0x0A20+1(R14)  
+
+; --- Dígito 2 ---
+            MOV.B   #pos2, R14          
+            ADD.B   #1, R5
+            CMP.B   #48, R5
+            JL      CONT_1
+            MOV.B   #0, R5
+CONT_1:     MOV.B   stringNamesH(R5), 0x0A20(R14)  
+            MOV.B   stringNamesL(R5), 0x0A20+1(R14)  
+
+; --- Dígito 3 ---
+            MOV.B   #pos3, R14          
+            ADD.B   #1, R5
+            CMP.B   #48, R5
+            JL      CONT_2
+            MOV.B   #0, R5
+CONT_2:     MOV.B   stringNamesH(R5), 0x0A20(R14)  
+            MOV.B   stringNamesL(R5), 0x0A20+1(R14)  
+
+; --- Dígito 4 ---
+            MOV.B   #pos4, R14          
+            ADD.B   #1, R5
+            CMP.B   #48, R5
+            JL      CONT_3
+            MOV.B   #0, R5
+CONT_3:     MOV.B   stringNamesH(R5), 0x0A20(R14)  
+            MOV.B   stringNamesL(R5), 0x0A20+1(R14)  
+
+; --- Dígito 5 ---
+            MOV.B   #pos5, R14          
+            ADD.B   #1, R5
+            CMP.B   #48, R5
+            JL      CONT_4
+            MOV.B   #0, R5
+CONT_4:     MOV.B   stringNamesH(R5), 0x0A20(R14)  
+            MOV.B   stringNamesL(R5), 0x0A20+1(R14)  
+
+; --- Dígito 6 ---
+            MOV.B   #pos6, R14
+            ADD.B   #1, R5
+            CMP.B   #48, R5
+            JL      CONT_5
+            MOV.B   #0, R5
+CONT_5:     MOV.B   stringNamesH(R5), 0x0A20(R14)       
+            MOV.B   stringNamesL(R5), 0x0A20+1(R14)  
+
+            RET
+
+
+;-------------------------------------------------------------------------------
+; Subroutine: DELAY
+; Purpose: Waits 500ms x 2 = 1s
+;-------------------------------------------------------------------------------
+DELAY
+            MOV.W   #50000, R15        
+DELAY_LOOP
+            DEC.W   R15                 
+            JNZ     DELAY_LOOP          
+            RET  
+
+
+
+;----------------------------------------
+            .global __STACK_END
+            .sect   .stack
+
+            .sect   ".int37"      ; Vector para interrupciones del Puerto 1
+            .short  PORT1_ISR
+
+            .sect   ".reset"
+            .short  RESET
+
+            .end

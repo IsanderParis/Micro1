@@ -1,0 +1,78 @@
+PORT1_ISR:
+    ; ====================== S1 ======================
+    bit.b   #BIT1, &P1IFG
+    jz      check_S2
+    bic.b   #BIT1, &P1IFG
+
+    bit.b   #BIT1, &P1IN
+    jnz     s1_subida
+
+s1_bajada:
+    mov.b   &modoOP, R10
+    cmp.b   #0, R10
+    jeq     modo0_s1_bajada
+
+    cmp.b   #1, R10
+    jeq     modo1_s1_bajada
+
+    jmp     fin_ISR
+
+modo0_s1_bajada:
+    bis.b   #BIT0, &P1OUT
+    mov.b   #1, &boton1Presionado
+    bic.b   #BIT1, &P1IES
+    jmp     fin_ISR
+
+modo1_s1_bajada:
+    ; Aquí va la acción para modo 1 con S1
+    ; Por ejemplo, mostrar "READY"
+    CALL    #READY_SCREEN
+    bic.b   #BIT1, &P1IES
+    jmp     fin_ISR
+
+s1_subida:
+    bic.b   #BIT0, &P1OUT
+    mov.b   #0, &boton1Presionado
+    bis.b   #BIT1, &P1IES
+    jmp     fin_ISR
+
+; ====================== S2 ======================
+check_S2:
+    bit.b   #BIT2, &P1IFG
+    jz      fin_ISR
+    bic.b   #BIT2, &P1IFG
+
+    bit.b   #BIT2, &P1IN
+    jnz     s2_subida
+
+s2_bajada:
+    mov.b   &modoOP, R10
+    cmp.b   #0, R10
+    jeq     modo0_s2_bajada
+
+    cmp.b   #1, R10
+    jeq     modo1_s2_bajada
+
+    jmp     fin_ISR
+
+modo0_s2_bajada:
+    bis.b   #BIT7, &P9OUT
+    mov.b   #1, &boton2Presionado
+    CALL    #Display_Menu
+    bic.b   #BIT2, &P1IES
+    jmp     fin_ISR
+
+modo1_s2_bajada:
+    ; Acción específica del modo 1 con S2
+    ; Podrías cambiar el modo nuevamente u otra función
+    CALL    #READY_SCREEN
+    bic.b   #BIT2, &P1IES
+    jmp     fin_ISR
+
+s2_subida:
+    bic.b   #BIT7, &P9OUT
+    mov.b   #0, &boton2Presionado
+    bis.b   #BIT2, &P1IES
+
+fin_ISR:
+    reti
