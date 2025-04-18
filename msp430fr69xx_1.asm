@@ -1,13 +1,13 @@
 ; MSP430FR6989 - Encender LEDs mientras se mantiene presionado S1 o S2
 ; S1 (P1.1) controla LED rojo (P1.0)
 ; S2 (P1.2) controla LED verde (P9.7)
-
+;-------------------------------------------------------------------------------
             .cdecls C,LIST,"msp430.h"
 
 
             .text
             .def    RESET
-;----------------------------------------
+;-------------------------------------------------------------------------------
 
 pos1	.equ	9      ; Alphanumeric A1 begins at S18
 pos2	.equ	5      ; Alphanumeric A2 begins at S10
@@ -32,7 +32,7 @@ modoActual:         .byte 0
 modoSeleccionado:   .byte 0            
 boton1Presionado:   .byte 0        ; 0 = S1 no presionado, 1 = S1 presionado
 boton2Presionado:   .byte 0        ; 0 = S1 no presionado, 1 = S1 presionado
-modoOP:             .byte 0      ; Empieza en modo 0
+modoOP:             .byte 0        ; Empieza en modo 0
 
 
             .text
@@ -54,7 +54,7 @@ RESET:
             CALL    #Init_Display
 
             ; Configura interrupciones por flanco de BAJADA (botón presionado)
-             CALL #Init_Interruptions
+            CALL #Init_Interruptions
 
             bic.w   #LOCKLPM5, &PM5CTL0       ; Desbloquea GPIOs
 
@@ -65,24 +65,24 @@ RESET:
 MAIN_LOOP:
     mov.b   &modoOP, R10
     cmp.b   #0, R10
-    jne     skip_scroll
+    jne     Saltar_Desplazamiento
 
     mov.b   &boton1Presionado, R11
     cmp.b   #1, R11
-    jne     skip_scroll
-    CALL    #Scroll
-    CALL    #DELAY
+    jne     Saltar_Desplazamiento
+    CALL    #Desplazamiento
+    CALL    #Delay_500ms
 
 
-skip_scroll:
+Saltar_Desplazamiento:
     jmp     MAIN_LOOP
 
 
 
 
-;===============
+;===========================================================================
 ;    Inits Individuales
-;============
+;===========================================================================
 Init_LEDS
     bis.b   #BIT0, &P1DIR             ; P1.0 como salida (LED rojo)
     bic.b   #BIT0, &P1OUT             ; Apagado al inicio
@@ -121,13 +121,14 @@ Init_LCD
 
 Init_Display:
     MOV.B   #0, R6
-    CALL    #UPDATE_DISPLAY
+    CALL    #Actualiza_Display
+
     RET
 
 
-;----------------------------------------
+;----------------------------------------------------------
 ; Interrupcion
-;---------
+;----------------------------------------------------------
 PORT1_ISR:
     ; ========== S1 (P1.1) ==========
     bit.b   #BIT1, &P1IFG
@@ -136,11 +137,11 @@ PORT1_ISR:
 
     bit.b   #BIT1, &P1IN
     jnz     s1_subida                 ; Si P1.1 está en HIGH, es subida
-    jmp     s1_bajada                   ; si p1.1 esta low, es bajada
+    jmp     s1_bajada                 ; Si p1.1 esta low, es bajada
 
 s1_subida:  
     bic.b   #BIT0, &P1OUT             ; Apaga LED rojo
-    mov.b   #0, &boton1Presionado      ; Bandera en 0
+    mov.b   #0, &boton1Presionado     ; Bandera en 0
     bis.b   #BIT1, &P1IES             ; Próxima interrupción: bajada
     jmp     fin_ISR
 
@@ -177,8 +178,8 @@ modo1_s1_bajada:
 
 modo2_s1_bajada:
     bis.b   #BIT0, &P1OUT
-    CALL    #Scroll_Mode_Options
-    CALL    #Display_Mode__Option
+    CALL    #Desplazar_Opcion_Modo
+    CALL    #Display_Opcion_Modo
     jmp     fin_ISR
 
 
@@ -216,7 +217,7 @@ s2_bajada:
 
 modo0_s2_bajada:
     bis.b   #BIT7, &P9OUT
-    Mov.B #1, &modoOP
+    mov.b   #1, &modoOP
     mov.b   #1, &boton2Presionado
     CALL    #Display_Menu
     bic.b   #BIT2, &P1IES
@@ -225,30 +226,30 @@ modo0_s2_bajada:
 modo1_s2_bajada:
     bis.b   #BIT7, &P9OUT
     MOV.B   #2, &modoOP
-    CALL #Display_Mode
-    CALL #Display_Mode__Option
+    CALL    #Display_Modo
+    CALL    #Display_Opcion_Modo
     jmp     fin_ISR
 
 modo2_s2_bajada:
     bis.b   #BIT7, &P9OUT
     MOV.B   #3, &modoOP
-    CALL    #Save_Selected_Mode
+    CALL    #Guardar_Modo_Seleccionado
 
 
 fin_ISR:
     reti
 
 
-;========================
-; subrutinas
-;================
+;=======================================================
+; Subrutinas
+;=======================================================
     
 ;-------------------------------------------------------
-; Subroutine: READY_SCREEN
-; Purpose: Displays "READY", timer icon and battery brackets
-; on the LCD
+; Subrutina: Display_Ready
+; Propósito: Refleja "READY", el icono del timer y los 
+; corchetes de la bateria en el LCD
 ;-------------------------------------------------------
-READY_SCREEN:
+Display_Ready:
             MOV.B   #0xCF, &0xA29           ; "R" at A1
             MOV.B   #0x02, &0xA2A
 
@@ -271,8 +272,10 @@ READY_SCREEN:
             MOV.B   #0x08, &0xA22           ;Turn on timer icon 
 
             RET
-
-; Display Menu
+;-------------------------------------------------------
+; Subrutina: Display_Menu
+; Propósito: Refleja "MENU" en el LCD
+;-------------------------------------------------------
 Display_Menu:
             ;Mov.B #1, &modoOP
             MOV.B   #0x6C, &0xA29               ; "M" at A1
@@ -294,72 +297,87 @@ Display_Menu:
             MOV.B   #0x00, &0xA28
 
             RET   
-
-;display Mode
-Display_Mode 
-            MOV.B   #0x6C, &0xA29               ; "M" at A1
+;-------------------------------------------------------
+; Subrutina: Display_Modo
+; Propósito: Refleja "MODO_X" en el LCD
+;-------------------------------------------------------
+Display_Modo 
+            MOV.B   #0x6C, &0xA29       ; "M" at A1
             MOV.B   #0xA0, &0xA2A
 
-            MOV.B   #0xFC, &0xA25               ; "o" at A2
+            MOV.B   #0xFC, &0xA25       ; "O" at A2
             MOV.B   #0x00, &0xA26 
 
-            MOV.B   #0xF0, &0xA23               ; D at A3
+            MOV.B   #0xF0, &0xA23       ; "D" at A3
             MOV.B   #0x50, &0xA24
 
-            MOV.B   #0x9F, &0xA32               ; E at A4
+            MOV.B   #0x9F, &0xA32       ; "E" at A4
             MOV.B   #0x00, &0xA33
 
-            MOV.B   #0x10, &0xA2E               ; _ at A5
+            MOV.B   #0x10, &0xA2E       ; "_" at A5
             MOV.B   #0x00, &0xA2F
 
-            MOV.B   #0x00, &0xA27               ; at A6
+            MOV.B   #0x00, &0xA27       ; at A6
             MOV.B   #0x00, &0xA28
 
             RET   
 
-;Display_Mode__Option
-Display_Mode__Option:
+;-------------------------------------------------------
+; Subrutina: Display_Opcion_Modo
+; Propósito: Refleja las opciones de los modos
+; en el LCD
+;-------------------------------------------------------
+Display_Opcion_Modo:
     MOV.B   &modoActual, R10
 
     CMP.B   #0, R10
-    JEQ     mode_0
+    JEQ     modo_0
     CMP.B   #1, R10
-    JEQ     mode_1
+    JEQ     modo_1
     CMP.B   #2, R10
-    JEQ     mode_2
+    JEQ     modo_2
     CMP.B   #3, R10
-    JEQ     mode_3
+    JEQ     modo_3
     CMP.B   #4, R10
-    JEQ     mode_4
+    JEQ     modo_4
     RET
 
-mode_0:
+;-------------------------------------------------------
+; Subrutinas: modo_X 
+; Propósito: Mascarillas para los numeros de los modos
+; que se reflejan en el LCD
+;-------------------------------------------------------
+modo_0:
     MOV.B   #0xFC, &0xA27       ; 0 at A6
     MOV.B   #0x00, &0xA28
     RET
 
-mode_1:
+modo_1:
     MOV.B   #0x60, &0xA27       ; 1 at A6
     MOV.B   #0x20, &0xA28
     RET
 
-mode_2:
+modo_2:
     MOV.B   #0xDB, &0xA27       ; 2 at A6
     MOV.B   #0x00, &0xA28
     RET
 
-mode_3:
+modo_3:
     MOV.B   #0xF1, &0xA27       ; 3 at A6
     MOV.B   #0x00, &0xA28
     RET
 
-mode_4:
+modo_4:
     MOV.B   #0x67, &0xA27       ; 4 at A6
     MOV.B   #0x00, &0xA28
     RET
 
-
-Scroll_Mode_Options:
+;-------------------------------------------------------
+; Subrutina: Desplazar_Opcion_Modo  
+; Propósito: Desplazar las opciones de los modos
+; que se reflejan en el LCD
+;-------------------------------------------------------
+Desplazar_Opcion_Modo:
     MOV.B   &modoActual, R10
     INC.B   R10
     CMP.B   #5, R10
@@ -369,31 +387,35 @@ no_wrap:
     MOV.B   R10, &modoActual
     RET
 
-
-; Save_Selected_Mode
-Save_Selected_Mode:
+;-------------------------------------------------------
+; Subrutina: Guardar_Modo_Seleccionado
+; Propósito: Desplazar las opciones de los modos
+; que se reflejan en el LCD
+;-------------------------------------------------------
+Guardar_Modo_Seleccionado:
     MOV.B   &modoActual, R10
     MOV.B   R10, &modoSeleccionado
     RET
 
 
-;-------------------------------------------------------------------------------------
-; Subroutine: Scroll
-; Purpose: Se encarga de mover el texto en la pantalla hacia la izquierda
-;------------------------------------------------------------------------------------
-Scroll:
-    CALL    #UPDATE_DISPLAY
-    CALL    #DELAY
-    CALL    #DELAY
-    CALL    #Update_Position
+;-------------------------------------------------------
+; Subrutina: Desplazamiento
+; Propósito: Mueve el texto en el LCD hacia la izquierda
+;-------------------------------------------------------
+Desplazamiento:
+    CALL    #Actualiza_Display
+    CALL    #Delay_500ms
+    CALL    #Delay_500ms
+    CALL    #Actualiza_Posicion
     RET
 
 ;-------------------------------------------------------
-; Subroutine: Update_Position
-; Purpose: Aumenta el índice R6 para avanzar el scroll. Si ya llegamos al final del string
-;   entonces reinicia el índice a 0 para que el scroll sea cíclico.
+; Subrutina: Actualiza_Posicion
+; Propósito: Aumenta el índice R6 para avanzar el desplazamiento
+; Si llegamos al final del string, entonces reinicia el índice
+; a 0 para que el desplazmiento sea cíclico
 ;-------------------------------------------------------
-Update_Position:
+Actualiza_Posicion:
     INC.B   R6
     CMP.B   #44, R6 ;aqui
     JNE     no_reset
@@ -403,11 +425,11 @@ no_reset:
 
 
 ;-------------------------------------------------------------------------------
-; Subroutine: UPDATE_DISPLAY
-; Purpose: Update the LCD with 6 characters starting at the given index
+; Subrutina: Actualiza_Display
+; Propósito: Actualiza el LCD con 6 caracters empezando en el índice indicado
 ; Input: R6 = scroll position (0 to 2)
 ;-------------------------------------------------------------------------------
-UPDATE_DISPLAY:
+Actualiza_Display:
             MOV.B   #pos1, R14         
             MOV.B   R6, R5             
 
@@ -464,26 +486,29 @@ CONT_5:     MOV.B   stringNamesH(R5), 0x0A20(R14)
 
 
 ;-------------------------------------------------------------------------------
-; Subroutine: DELAY
-; Purpose: Waits 500ms x 2 = 1s
+; Subrutina: Delay_500ms
+; Propósito: Espera 500ms x 2 = 1s
 ;-------------------------------------------------------------------------------
-DELAY
+Delay_500ms
             MOV.W   #50000, R15        
-DELAY_LOOP
+Loop_Delay_500ms
             DEC.W   R15                 
-            JNZ     DELAY_LOOP          
+            JNZ     Loop_Delay_500ms          
             RET  
 
-; Delay_20ms: ~20ms delay (ajustable)
+;-------------------------------------------------------------------------------
+; Subrutina: Delay_20ms
+; Propósito: Espera 20ms (ajustable)
+;-------------------------------------------------------------------------------
 Delay_20ms:
     MOV     #5000, R15       ; Ajusta este valor si tu reloj es más rápido/lento
-delay_loop:
+Loop_Delay_20ms:
     DEC     R15
-    JNZ     delay_loop
+    JNZ     Loop_Delay_20ms
     RET
 
 
-;----------------------------------------
+;------------------------------------------------------------------------------=
             .global __STACK_END
             .sect   .stack
 
