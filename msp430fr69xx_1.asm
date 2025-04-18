@@ -341,7 +341,7 @@ mode_1:
     RET
 
 mode_2:
-    MOV.B   #0xD2, &0xA27       ; 2 at A6
+    MOV.B   #0xDB, &0xA27       ; 2 at A6
     MOV.B   #0x00, &0xA28
     RET
 
@@ -351,7 +351,7 @@ mode_3:
     RET
 
 mode_4:
-    MOV.B   #0x87, &0xA27       ; 4 at A6
+    MOV.B   #0x67, &0xA27       ; 4 at A6
     MOV.B   #0x00, &0xA28
     RET
 
