@@ -1,7 +1,7 @@
 [
    {
-      "directory" : "/Users/isanderparis/workspace_ccstheia/temporizador.asm/Debug",
-      "command"   : "clang++ -I\"/Applications/ti/ccs2011/ccs/ccs_base/msp430/include\" -I\"/Users/isanderparis/workspace_ccstheia/temporizador.asm\" -I\"/Applications/ti/ccs2011/ccs/tools/compiler/ti-cgt-msp430_21.6.1.LTS/include\" -D__MSP430FR6989__ -D_MPU_ENABLE",
-      "file"      : "/Users/isanderparis/workspace_ccstheia/temporizador.asm/msp430fr69xx_1.asm"
+      "directory" : "/Users/angelicacruz/Desktop/Micro/Micro1/Debug",
+      "command"   : "clang++ -I\"/Applications/ti/ccs2010/ccs/ccs_base/msp430/include\" -I\"/Users/angelicacruz/Desktop/Micro/Micro1\" -I\"/Applications/ti/ccs2010/ccs/tools/compiler/ti-cgt-msp430_21.6.1.LTS/include\" -D__MSP430FR6989__ -D_MPU_ENABLE",
+      "file"      : "/Users/angelicacruz/Desktop/Micro/Micro1/msp430fr69xx_1.asm"
    }
 ]
