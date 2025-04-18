@@ -245,8 +245,8 @@ fin_ISR:
     
 ;-------------------------------------------------------
 ; Subroutine: READY_SCREEN
-; Purpose: Displays "READY" anf timer icon on the LCD
-;(still need to implement the timer)
+; Purpose: Displays "READY", timer icon and battery brackets
+; on the LCD
 ;-------------------------------------------------------
 READY_SCREEN:
             MOV.B   #0xCF, &0xA29           ; "R" at A1
@@ -266,6 +266,9 @@ READY_SCREEN:
 
             MOV.B   #0x00, &0xA27
             MOV.B   #0x00, &0xA28
+
+            MOV.B   #0x10, &0xA31           ;Turn on battery brackets 
+            MOV.B   #0x08, &0xA22           ;Turn on timer icon 
 
             RET
 
