@@ -28,6 +28,9 @@ stringNamesL	.byte 0x50, 0x00, 0x00, 0xA0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0
             .global modoActual
             .global modoSeleccionado
 
+freqActual:         .byte 0
+freqSeleccionado:   .byte 0 
+freqOP:             .byte 0 
 modoActual:         .byte 0
 modoSeleccionado:   .byte 0            
 boton1Presionado:   .byte 0        ; 0 = S1 no presionado, 1 = S1 presionado
@@ -1136,6 +1139,192 @@ StopTimerA0:
     bic     #CCIE, &TA0CCTL0
     ret
 
+;-------------------------------------------------------
+; Subrutina: freq2_s1_bajada 
+; Objetivo: 
+; Pre-condiciones:
+; Post-condiciones:
+; Autor: Camila Hernández
+; Fecha: 21/abril/2025
+;------------------------------------------------------- 
+freq2_s1_bajada:
+    bis.b   #BIT0, &P1OUT
+    CALL    #Desplazar_Opcion_FREQ
+    CALL    #Display_Opcion_FREQ
+    jmp     fin_ISR
+;-------------------------------------------------------
+; Subrutina: freq1_s2_bajada 
+; Objetivo: 
+; Pre-condiciones:
+; Post-condiciones:
+; Autor: Camila Hernández
+; Fecha: 21/abril/2025
+;------------------------------------------------------- 
+freq1_s2_bajada:
+    bis.b   #BIT7, &P9OUT
+    MOV.B   #2, &modoOP
+    CALL    #Display_FREQ
+    CALL    #Desplazar_Opcion_FREQ
+    jmp     fin_ISR
+;-------------------------------------------------------
+; Subrutina: freq2_s2_bajada 
+; Objetivo: 
+; Pre-condiciones:
+; Post-condiciones:
+; Autor: Camila Hernández
+; Fecha: 21/abril/2025
+;------------------------------------------------------- 
+freq2_s2_bajada:
+    bis.b   #BIT7, &P9OUT
+    MOV.B   #3, &modoOP
+    CALL    #Guardar_FREQ_Seleccionada
+;-------------------------------------------------------
+; Subrutina: Display_FREQ 
+; Objetivo: 
+; Pre-condiciones:
+; Post-condiciones:
+; Autor: Camila Hernández
+; Fecha: 21/abril/2025
+;------------------------------------------------------- 
+Display_FREQ 
+            MOV.B   #0x8F, &0xA29               ; "F" at A1
+            MOV.B   #0x00, &0xA2A
+
+            MOV.B   #0xCF, &0xA25               ; "R" at A2
+            MOV.B   #0x02, &0xA26 
+
+            MOV.B   #0x9F, &0xA23               ; E at A3
+            MOV.B   #0x00, &0xA24
+
+            MOV.B   #0xFC, &0xA32               ; Q at A4
+            MOV.B   #0x82, &0xA33
+
+            MOV.B   #0x10, &0xA2E               ; _ at A5
+            MOV.B   #0x00, &0xA2F
+
+            MOV.B   #0x00, &0xA27               ; 0 at A6
+            MOV.B   #0x00, &0xA28
+
+            RET  
+;-------------------------------------------------------
+; Subrutina: Display_Opcion_FREQ 
+; Objetivo: 
+; Pre-condiciones:
+; Post-condiciones:
+; Autor: Camila Hernández
+; Fecha: 21/abril/2025
+;------------------------------------------------------- 
+Display_Opcion_FREQ:
+    MOV.B   &freqActual, R10
+
+    CMP.B   #0, R10
+    JEQ     FREQ_0
+    CMP.B   #1, R10
+    JEQ     FREQ_1
+    CMP.B   #2, R10
+    JEQ     FREQ_2
+    CMP.B   #3, R10
+    JEQ     FREQ_3
+    CMP.B   #4, R10
+    JEQ     FREQ_4
+    RET
+;-------------------------------------------------------
+; Subrutina: FREQ_0 
+; Objetivo: 
+; Pre-condiciones:
+; Post-condiciones:
+; Autor: Camila Hernández
+; Fecha: 21/abril/2025
+;------------------------------------------------------- 
+FREQ_0:
+    MOV.B   #0xFC, &0xA27       ; 0 at A6
+    MOV.B   #0x00, &0xA28
+    RET
+;-------------------------------------------------------
+; Subrutina: FREQ_1 
+; Objetivo: 
+; Pre-condiciones:
+; Post-condiciones:
+; Autor: Camila Hernández
+; Fecha: 21/abril/2025
+;------------------------------------------------------- 
+FREQ_1:
+    MOV.B   #0x60, &0xA27       ; 1 at A6
+    MOV.B   #0x20, &0xA28
+    RET
+;-------------------------------------------------------
+; Subrutina: FREQ_2 
+; Objetivo: 
+; Pre-condiciones:
+; Post-condiciones:
+; Autor: Camila Hernández
+; Fecha: 21/abril/2025
+;------------------------------------------------------- 
+FREQ_2:
+    MOV.B   #0xDB, &0xA27       ; 2 at A6
+    MOV.B   #0x00, &0xA28
+    RET
+;-------------------------------------------------------
+; Subrutina: FREQ_3 
+; Objetivo: 
+; Pre-condiciones:
+; Post-condiciones:
+; Autor: Camila Hernández
+; Fecha: 21/abril/2025
+;------------------------------------------------------- 
+FREQ_3:
+    MOV.B   #0xF1, &0xA27       ; 3 at A6
+    MOV.B   #0x00, &0xA28
+    RET
+;-------------------------------------------------------
+; Subrutina: FREQ_4 
+; Objetivo: 
+; Pre-condiciones:
+; Post-condiciones:
+; Autor: Camila Hernández
+; Fecha: 21/abril/2025
+;------------------------------------------------------- 
+FREQ_4:
+    MOV.B   #0x67, &0xA27       ; 4 at A6
+    MOV.B   #0x00, &0xA28
+    RET
+;-------------------------------------------------------
+; Subrutina: Desplazar_Opcion_FREQ 
+; Objetivo: 
+; Pre-condiciones:
+; Post-condiciones:
+; Autor: Camila Hernández
+; Fecha: 21/abril/2025
+;------------------------------------------------------- 
+Desplazar_Opcion_FREQ:
+    MOV.B   &freqActual, R10
+    INC.B   R10
+    CMP.B   #5, R10
+    JNE     no_wrap_freq
+    MOV.B   #0, R10
+;-------------------------------------------------------
+; Subrutina: no_wrap_freq 
+; Objetivo: 
+; Pre-condiciones:
+; Post-condiciones:
+; Autor: Camila Hernández
+; Fecha: 21/abril/2025
+;------------------------------------------------------- 
+no_wrap_freq:
+    MOV.B   R10, &freqActual
+    RET
+;-------------------------------------------------------
+; Subrutina: Guardar_FREQ_Seleccionada 
+; Objetivo: 
+; Pre-condiciones:
+; Post-condiciones:
+; Autor: Camila Hernández
+; Fecha: 21/abril/2025
+;------------------------------------------------------- 
+Guardar_FREQ_Seleccionada:
+    MOV.B   &freqActual, R10
+    MOV.B   R10, &freqSeleccionado
+    RET
 
 ;------------------------------------------------------------------------------=
             .global __STACK_END
