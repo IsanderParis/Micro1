@@ -1,6 +1,7 @@
 ; MSP430FR6989 - Encender LEDs mientras se mantiene presionado S1 o S2
 ; S1 (P1.1) controla LED rojo (P1.0)
 ; S2 (P1.2) controla LED verde (P9.7)
+; last update 4/26/2025
 ;-------------------------------------------------------------------------------
             .cdecls C,LIST,"msp430.h"
 
@@ -21,43 +22,20 @@ pos6 	.equ	7      ; Alphanumeric A6 begins at S14
 stringNamesH	.byte 0x80, 0x9F, 0xEF, 0x6C, 0xFC, 0xF3, 0x00, 0x00, 0x00, 0xEF, 0x6C, 0xBD, 0x9F, 0x1C, 0x90, 0x9C, 0xEF, 0x00, 0x00, 0x00, 0x9C, 0xEF, 0x6C, 0x90, 0x1C, 0xEF, 0x00, 0x00, 0x00, 0x90, 0xB7, 0xEF, 0x6C, 0xF0, 0x9F, 0xCF, 0x00, 0x00, 0x00, 0x9F, 0xF0, 0xBD, 0xEF, 0xCF, 0xF0, 0xFC, 0x00, 0x00, 0x00, 0x80, 0x9F, 0xEF, 0x6C, 0xFC, 0xF3
 stringNamesL	.byte 0x50, 0x00, 0x00, 0xA0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x82, 0x00, 0x00, 0x00, 0x50, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xA0, 0x50, 0x00, 0x00, 0x00, 0x00, 0x00, 0x50, 0x00, 0x00, 0x82, 0x50, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x50, 0x00, 0x00, 0x02, 0x50, 0x00, 0x00, 0x00, 0x00, 0x50, 0x00, 0x00, 0xA0, 0x00, 0x00
 
-            .data
-            .global boton1Presionado
-            .global boton2Presionado
-            .global modoOP
-            .global modoActual
-            .global modoSeleccionado
-
-freqActual:         .byte 0
-freqSeleccionado:   .byte 0 
-freqOP:             .byte 0 
-modoActual:         .byte 0
-modoSeleccionado:   .byte 0            
-boton1Presionado:   .byte 0        ; 0 = S1 no presionado, 1 = S1 presionado
-boton2Presionado:   .byte 0        ; 0 = S1 no presionado, 1 = S1 presionado
-modoOP:             .byte 0        ; Empieza en modo 0
-
-
-            .text
+    
 RESET:
             mov.w   #__STACK_END, SP          ; Inicializa el stack
             mov.w   #WDTPW | WDTHOLD, &WDTCTL ; Detiene Watchdog
 
-            ;--------------------------
+            ;----------------------------
             ; CONFIGURACIÓN DE LEDs
+            ;-----------------------------
             CALL    #Init_LEDS
-
-
-            ; Hacer init de los flags
-
-            ;--------------------------
-            ; CONFIGURACIÓN DE BOTONES S1 y S2
-            CALL    #Init_Buttons
+            CALL    #Init_Buttons           ; CONFIGURACIÓN DE BOTONES S1 y S2
             CALL    #Init_LCD
             CALL    #Init_Display
-
-            ; Configura interrupciones por flanco de BAJADA (botón presionado)
-            CALL #Init_Interruptions
+            CALL    #Init_REgisters
+            CALL    #Init_Interruptions
 
             bic.w   #LOCKLPM5, &PM5CTL0       ; Desbloquea GPIOs
 
@@ -65,12 +43,20 @@ RESET:
             bis.w   #GIE, SR                  ; Habilita interrupciones globales
             nop
 
-MAIN_LOOP:
-    mov.b   &modoOP, R10
-    cmp.b   #0, R10
-    jne     Saltar_Desplazamiento
 
-    mov.b   &boton1Presionado, R11
+;=============================================================
+;                       Main Loop
+;=============================================================
+;
+;
+;
+;
+;----------
+MAIN_LOOP:
+   
+    cmp     #3, R8      ; estamos en el input number screen
+    jeq     Blink_at_CurrentIndex
+
     cmp.b   #1, R11
     jne     Saltar_Desplazamiento
     CALL    #Desplazamiento
@@ -82,10 +68,16 @@ Saltar_Desplazamiento:
 
 
 
-
 ;===========================================================================
 ;    Inits Individuales
 ;===========================================================================
+;
+;
+;----------
+;
+;
+;
+;--------
 Init_LEDS
     bis.b   #BIT0, &P1DIR             ; P1.0 como salida (LED rojo)
     bic.b   #BIT0, &P1OUT             ; Apagado al inicio
@@ -93,7 +85,10 @@ Init_LEDS
     bis.b   #BIT7, &P9DIR             ; P9.7 como salida (LED verde)
     bic.b   #BIT7, &P9OUT             ; Apagado al inic
     RET
-
+;----------------
+;
+;
+;----------------
 Init_Interruptions:
     bic.b   #BIT1 + BIT2, &P1IFG     ; Limpia banderas previas
     bis.b   #BIT1 + BIT2, &P1IES     ; Flanco de bajada
@@ -108,8 +103,16 @@ Init_Buttons
     bic.b   #BIT1 + BIT2, &P1DIR      ; P1.1 y P1.2 como entrada
     RET
 
-Init_LCD
+Init_REgisters:             ; anadir aqui todos los registros que usamos
+    mov     #0, R8
+    mov     #0, R9
+    mov     #0, R10
+    mov     #0, R11
+    mov     #0, R12
+    mov     #0, R15 
+    ret
 
+Init_LCD
     MOV.W   #0xFFFF,&LCDCPCTL0  ; Initialize LCD segments 0 - 21; 26 - 43
     MOV.W   #0xFC3F,&LCDCPCTL1
     MOV.W   #0x0FFF,&LCDCPCTL2
@@ -127,19 +130,28 @@ Init_Display:
     CALL    #Actualiza_Display
 
     RET
+;========================================================================================
+;                                        Variables
+;======================================================================================
+
+;   R4 = modo
+;   R5 = freq
+;   R6 = Input number
+;   R7 = division ratio
+;   R8 = screen
+;   R9 = index del input number
+;   R10 = helper scroll digits 0-9
+;   R11 = boton 1 Presionado Flag
+;   R12 = is Active, usado para hacerle blink al digito
+;   R13 = helper scroll digits 0-4
+;   R14 = helper
+;   R15 = helper delay clock
 
 
-;----------------------------------------------------------
-; Interrupcion
-;----------------------------------------------------------
-;-------------------------------------------------------
-; Subrutina: PORT1_ISR
-; Objetivo:  
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Isander Paris 
-; Fecha:
-;-------------------------------------------------------
+;=================================================================================================
+;       Interrupcion
+;=================================================================================================
+
 PORT1_ISR:
     ; ========== S1 (P1.1) ==========
     bit.b   #BIT1, &P1IFG
@@ -150,98 +162,78 @@ PORT1_ISR:
     jnz     s1_subida                 ; Si P1.1 está en HIGH, es subida
     jmp     s1_bajada                 ; Si p1.1 esta low, es bajada
 
-;-------------------------------------------------------
-; Subrutina: s1_subida
-; Objetivo:  
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Isander Paris 
-; Fecha:
-;-------------------------------------------------------
+
 s1_subida:  
     bic.b   #BIT0, &P1OUT             ; Apaga LED rojo
-    mov.b   #0, &boton1Presionado     ; Bandera en 0
+    mov.b   #0, R11                     ; Bandera en 0
     bis.b   #BIT1, &P1IES             ; Próxima interrupción: bajada
     jmp     fin_ISR
 
 
-;-------------------------------------------------------
-; Subrutina: s1_bajada
-; Objetivo:  
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Isander Paris 
-; Fecha:
-;-------------------------------------------------------
 s1_bajada:
-    CALL    #Delay_20ms
-    mov.b   &modoOP, R10
+     CALL    #Delay_500ms               ; debouncing
+    cmp.b   #0, R8
+    jeq     screen0_s1_bajada
+
+    cmp.b   #1, R8
+    jeq     screen1_s1_bajada
+
+    cmp.b   #2, R8
+    jeq     screen2_s1_bajada
+
+    cmp.b   #3, R8
+    jeq     screen3_s1_bajada
+
+    cmp.b   #4, R8
+    jeq     screen4_s1_bajada
+
+    cmp.b   #5, R8
+    jeq     screen5_s1_bajada
     
-    cmp.b   #0, R10
-    jeq     modo0_s1_bajada
-
-    cmp.b   #1, R10
-    jeq     modo1_s1_bajada
-
-    cmp.b   #2, R10
-    jeq     modo2_s1_bajada
-    
-
     jmp     fin_ISR
 
-;-------------------------------------------------------
-; Subrutina: modo0_s1_bajada
-; Objetivo:  
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Isander Paris 
-; Fecha:
-;-------------------------------------------------------
-modo0_s1_bajada:                        ; en modo 0 y modo 1 s1 hace lo mismo
-    mov.b   #1, &boton1Presionado
+
+screen0_s1_bajada:                        ; Screen inicicial
+    mov.b   #1, R11
     bis.b   #BIT0, &P1OUT
     bic.b   #BIT1, &P1IES
     jmp     fin_ISR
 
-;-------------------------------------------------------
-; Subrutina: modo1_s1_bajada
-; Objetivo:  
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Isander Paris 
-; Fecha:
-;-------------------------------------------------------
-modo1_s1_bajada:
-    mov.b   #0, &modoOP
-    mov.b   #1, &boton1Presionado
+screen1_s1_bajada:                          ;   Menu
+    mov.b   #0, R8
+    mov.b   #1, R11
     bis.b   #BIT0, &P1OUT
     bic.b   #BIT1, &P1IES
     jmp     fin_ISR
 
-;-------------------------------------------------------
-; Subrutina: modo2_s1_bajada
-; Objetivo:  
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Isander Paris 
-; Fecha:
-;-------------------------------------------------------
-modo2_s1_bajada:
+screen2_s1_bajada:                          ;   Mode
     bis.b   #BIT0, &P1OUT
-    CALL    #Desplazar_Opcion_Modo
-    CALL    #Display_Opcion_Modo
+    CALL    #Incrementar_Digito_Modo
+    CALL    #DisplayDigit_en_A6
     jmp     fin_ISR
 
+screen3_s1_bajada:                          ;   Input Number
+    bis.b   #BIT0, &P1OUT
+    CALL    #Increment_Display_Digit
+    CALL    #Get_7Segment_Code
+    CALL    #Display_at_index
+    jmp     fin_ISR
+
+screen4_s1_bajada:                         ; Frequency
+    bis.b   #BIT0, &P1OUT
+    CALL    #Incrementar_Digito_Freq
+    CALL    #DisplayDigit_en_A6
+    jmp     fin_ISR
+
+screen5_s1_bajada:                         ; Div Frequency
+    bis.b   #BIT0, &P1OUT
+    CALL    #Incrementar_Digito_DivFreq
+    CALL    #DisplayDigit_en_A6
+    jmp     fin_ISR
+                                            
 
 ; ========== S2 (P1.2) ==========
-;-------------------------------------------------------
-; Subrutina: check_S2
-; Objetivo:  
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Isander Paris 
-; Fecha:
-;-------------------------------------------------------
+
 check_S2:
     bit.b   #BIT2, &P1IFG
     jz      fin_ISR
@@ -251,112 +243,99 @@ check_S2:
     jnz     s2_subida
     jmp     s2_bajada
 
-;-------------------------------------------------------
-; Subrutina: s2_subida
-; Objetivo:  
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Isander Paris 
-; Fecha:
-;-------------------------------------------------------
 s2_subida:
     bic.b   #BIT7, &P9OUT             ; Apaga LED verde
     bis.b   #BIT2, &P1IES             ; Próxima interrupción: bajada
-    mov.b   #0, &boton1Presionado      ; Bandera en 0
+    mov.b   #0, R11                     ; Bandera en 0
     jmp     fin_ISR
 
-;-------------------------------------------------------
-; Subrutina: s2_bajada
-; Objetivo:  
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Isander Paris 
-; Fecha:
-;-------------------------------------------------------
 s2_bajada:
-    CALL    #Delay_20ms
-    mov.b   &modoOP, R10
+    CALL    #Delay_500ms
 
-    cmp.b   #0, R10
-    jeq     modo0_s2_bajada
+    cmp.b   #0, R8
+    jeq    screen0_s2_bajada
 
-    cmp.b   #1, R10
-    jeq     modo1_s2_bajada
+    cmp.b   #1, R8
+    jeq     screen1_s2_bajada
 
-    cmp.b   #2, R10
-    jeq     modo2_s2_bajada
+    cmp.b   #2, R8
+    jeq     screen2_s2_bajada
+
+    cmp.b   #3, R8
+    jeq     screen3_s2_bajada
+
+    cmp.b   #4, R8
+    jeq     screen4_s2_bajada
+
+    cmp.b   #5, R8
+    jeq     screen5_s2_bajada
 
     jmp     fin_ISR
 
-;-------------------------------------------------------
-; Subrutina: modo0_s2_bajada
-; Objetivo:  
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Isander Paris 
-; Fecha:
-;-------------------------------------------------------
-modo0_s2_bajada:
+
+screen0_s2_bajada:                             ; inicio
     bis.b   #BIT7, &P9OUT
-    mov.b   #1, &modoOP
-    mov.b   #1, &boton2Presionado
+    mov.b   #1, R8
     CALL    #Display_Menu
     bic.b   #BIT2, &P1IES
     jmp     fin_ISR
 
-;-------------------------------------------------------
-; Subrutina: modo1_s2_bajada
-; Objetivo:  
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Isander Paris 
-; Fecha:
-;-------------------------------------------------------
-modo1_s2_bajada:
+screen1_s2_bajada:                            ; Menu
     bis.b   #BIT7, &P9OUT
-    MOV.B   #2, &modoOP
+    MOV.B   #2, R8
     CALL    #Display_Modo
-    CALL    #Display_Opcion_Modo
+    CALL    #DisplayDigit_en_A6
     jmp     fin_ISR
 
-;-------------------------------------------------------
-; Subrutina: modo2_s2_bajada
-; Objetivo:  
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Isander Paris 
-; Fecha:
-;-------------------------------------------------------
-modo2_s2_bajada:
-    bis.b   #BIT7, &P9OUT
-    MOV.B   #3, &modoOP
-    CALL    #Guardar_Modo_Seleccionado
 
-;-------------------------------------------------------
-; Subrutina: fin_ISR
-; Objetivo:  
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Isander Paris 
-; Fecha:
-;-------------------------------------------------------
+screen2_s2_bajada:                           ; modo
+    bis.b   #BIT7, &P9OUT
+    MOV.B   #3, R8
+    CALL    #Display_Initial_InputNumber
+    CALL    #Guardar_MODO_Seleccionado
+    jmp     fin_ISR
+
+
+screen3_s2_bajada:                          ; input number
+    mov     #1, R12
+    bis.b   #BIT7, &P9OUT
+    CALL    #Incrementar_InputNumber_Index
+
+    cmp     #6,R9
+    JEQ     cambiar_screen
+    jmp     fin_ISR
+   
+cambiar_screen:
+    MOV.B   #4, R8
+    mov     #0, R13         ;reset digit index
+    CALL    #Display_FREQ
+    CALL    #DisplayDigit_en_A6
+    jmp     fin_ISR
+
+screen4_s2_bajada:
+    bis.b   #BIT7, &P9OUT
+    MOV.B   #5, R8
+    CALL    #Guardar_FREQ_Seleccionada
+    CALL    #Display_DIVFREQ
+    CALL    #DisplayDigit_en_A6
+    jmp     fin_ISR
+
+screen5_s2_bajada:
+    bis.b   #BIT7, &P9OUT
+    MOV.B   #6, R8
+    CALL    #Guardar_DIVFreq_Seleccionada
+    CALL    #Display_Ready
+    jmp     fin_ISR
+
 fin_ISR:
     reti
 
 
-;=======================================================
-; Subrutinas
-;=======================================================
+;==============================================================================================
+; Subrutinas para hacer dsiplay al LCD
+;=================================================================================================
     
-;-------------------------------------------------------
-; Subrutina: Display_Ready
-; Objetivo: Refleja "READY", el icono del timer y los 
-; corchetes de la bateria en el LCD
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Angélica Cruz 
-; Fecha:
-;-------------------------------------------------------
+
 Display_Ready:
             MOV.B   #0xCF, &0xA29           ; "R" at A1
             MOV.B   #0x02, &0xA2A
@@ -380,16 +359,9 @@ Display_Ready:
             MOV.B   #0x08, &0xA22           ;Turn on timer icon 
 
             RET
-;-------------------------------------------------------
-; Subrutina: Display_Menu
-; Objetivo: Refleja "MENU" en el LCD 
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Isander Paris 
-; Fecha:
-;-------------------------------------------------------
+
 Display_Menu:
-            ;Mov.B #1, &modoOP
+            ;Mov.B #1, &screen
             MOV.B   #0x6C, &0xA29               ; "M" at A1
             MOV.B   #0xA0, &0xA2A
 
@@ -409,183 +381,374 @@ Display_Menu:
             MOV.B   #0x00, &0xA28
 
             RET   
-;-------------------------------------------------------
-; Subrutina: Display_Modo
-; Objetivo: Refleja "MODO_X" en el LCD 
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Isander Paris 
-; Fecha:
-;-------------------------------------------------------
+
 Display_Modo 
             MOV.B   #0x6C, &0xA29       ; "M" at A1
             MOV.B   #0xA0, &0xA2A
-
             MOV.B   #0xFC, &0xA25       ; "O" at A2
-            MOV.B   #0x00, &0xA26 
-
             MOV.B   #0xF0, &0xA23       ; "D" at A3
             MOV.B   #0x50, &0xA24
-
             MOV.B   #0x9F, &0xA32       ; "E" at A4
-            MOV.B   #0x00, &0xA33
-
             MOV.B   #0x10, &0xA2E       ; "_" at A5
-            MOV.B   #0x00, &0xA2F
-
             MOV.B   #0x00, &0xA27       ; at A6
-            MOV.B   #0x00, &0xA28
-
             RET   
 
-;-------------------------------------------------------
-; Subrutina: Display_Opcion_Modo
-; Objetivo: Refleja las opciones de los modos en el LCD
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Isander Paris 
-; Fecha:
-;-------------------------------------------------------
-Display_Opcion_Modo:
-    MOV.B   &modoActual, R10
+Display_Initial_InputNumber
+            MOV.B   #0x9C, &0xA29       ; "C" at A1
+            MOV.B   #0x00, &0xA2A
+            MOV.B   #0xFC, &0xA25       ; "0" at A2
+            MOV.B   #0x00, &0xA26
+            MOV.B   #0xFC, &0xA23       ; "0" at A3
+            MOV.B   #0x00, &0xA24
+            MOV.B   #0xFC, &0xA32       ; "0" at A4
+            MOV.B   #0x00, &0xA33
+            MOV.B   #0xFC, &0xA2E       ; "0" at A5
+            MOV.B   #0x00, &0xA2F
+            MOV.B   #0xFC, &0xA27       ; "0" at A6
+            MOV.B   #0x00, &0xA28
+            RET  
 
-    CMP.B   #0, R10
-    JEQ     modo_0
-    CMP.B   #1, R10
-    JEQ     modo_1
-    CMP.B   #2, R10
-    JEQ     modo_2
-    CMP.B   #3, R10
-    JEQ     modo_3
-    CMP.B   #4, R10
-    JEQ     modo_4
+Display_FREQ 
+            MOV.B   #0x8F, &0xA29               ; "F" at A1
+            MOV.B   #0x00, &0xA2A
+
+            MOV.B   #0xCF, &0xA25               ; "R" at A2
+            MOV.B   #0x02, &0xA26 
+
+            MOV.B   #0x9F, &0xA23               ; E at A3
+            MOV.B   #0x00, &0xA24
+
+            MOV.B   #0xFC, &0xA32               ; Q at A4
+            MOV.B   #0x82, &0xA33
+
+            MOV.B   #0x10, &0xA2E               ; _ at A5
+            MOV.B   #0x00, &0xA2F
+
+            MOV.B   #0x00, &0xA27               ; 0 at A6
+            MOV.B   #0x00, &0xA28
+
+            RET
+
+Display_DIVFREQ 
+            MOV.B   #0x8F, &0xA29               ; "F" at A1
+            MOV.B   #0x00, &0xA2A
+
+            MOV.B   #0xCF, &0xA25               ; "R" at A2
+            MOV.B   #0x02, &0xA26 
+
+            MOV.B   #0xFC, &0xA23               ; "Q" at A3
+            MOV.B   #0x82, &0xA24
+
+            MOV.B   #0x00, &0xA32               ; "/" at A4
+            MOV.B   #0x28, &0xA33
+
+            MOV.B   #0x10, &0xA2E               ; _ at A5
+            MOV.B   #0x00, &0xA2F
+
+            MOV.B   #0xFC, &0xA27               ; 0 at A6
+            MOV.B   #0x00, &0xA28
+
+            RET 
+;
+; Esta subrutina se encarga de hacer display en un solo index y la usamos para seleccionar modo y freq
+; Creo que la podemos sustituir usando display at index
+;
+DisplayDigit_en_A6:
+    CMP     #0, R13
+    JEQ     Digit0_To_Display
+
+    CMP     #1, R13
+    JEQ     Digit1_To_Display
+
+    CMP     #2, R13
+    JEQ     Digit2_To_Display
+
+    CMP     #3, R13
+    JEQ     Digit3_To_Display
+
+    CMP     #4, R13
+    JEQ     Digit4_To_Display
+
+    CMP     #5, R13
+    JEQ     Digit5_To_Display
+
+    CMP     #6, R13
+    JEQ     Digit6_To_Display
+
+    CMP     #7, R13
+    JEQ     Digit7_To_Display
+    
+    ret
+
+Digit0_To_Display:
+    mov.b   #0xFC, &0xA27       ; Segmentos para 0 en A6
+    mov.b   #0x00, &0xA28
+    ret
+
+Digit1_To_Display:
+    mov.b   #0x60, &0xA27       ; Segmentos para 1 en A6
+    mov.b   #0x20, &0xA28
+    ret
+
+Digit2_To_Display:
+    mov.b   #0xDB, &0xA27       ; Segmentos para 2 en A6
+    mov.b   #0x00, &0xA28
+    ret
+
+Digit3_To_Display:
+    mov.b   #0xF1, &0xA27       ; Segmentos para 3 en A6
+    mov.b   #0x00, &0xA28
+    ret
+
+Digit4_To_Display:
+    mov.b   #0x67, &0xA27       ; Segmentos para 4 en A6
+    mov.b   #0x00, &0xA28
+    ret
+
+Digit5_To_Display:
+    mov.b   #0xB7, &0xA27       ; Segmentos para 5 en A6 mal
+    mov.b   #0x00, &0xA28
+    ret
+
+Digit6_To_Display:
+    mov.b   #0xBF, &0xA27       ; Segmentos para 6 en A6
+    mov.b   #0x00, &0xA28
+    ret
+
+Digit7_To_Display:
+    mov.b   #0xE0, &0xA27       ; Segmentos para 7 en A6
+    mov.b   #0x00, &0xA28
+    ret
+
+
+Increment_Display_Digit;
+    INC     R13
+    ret
+
+Incrementar_Digito_Modo:
+    INC     R13
+    cmp     #5, R13
+    jeq     reset_Digito
+    ret
+
+Incrementar_Digito_Freq:
+    INC     R13
+    cmp     #8, R13
+    jeq     reset_Digito
+    ret
+
+Incrementar_Digito_DivFreq:
+    INC     R13
+    cmp     #6, R13
+    jeq     reset_Digito
+    ret
+
+reset_Digito:
+    mov     #0, R13
+    ret
+;============================================================================
+;               Guardar
+;====================================================================================================================
+;
+; aqui setiamos el registro R4 quien guarda el modo seleccionado y hacemos reset de el index del digito
+
+Guardar_MODO_Seleccionado:
+    MOV     R13, R4
+    MOV      #0, R13
     RET
 
-;-------------------------------------------------------
-; Subrutina: modo_0
-; Objetivo: Mascarilla del numero 0 display de modo
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Isander Paris 
-; Fecha:
-;-------------------------------------------------------
-modo_0:
-    MOV.B   #0xFC, &0xA27       ; 0 at A6
-    MOV.B   #0x00, &0xA28
-    RET
-;-------------------------------------------------------
-; Subrutina: modo_1
-; Objetivo: Mascarilla del numero 1 display de modo
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Isander Paris 
-; Fecha:
-;-------------------------------------------------------
-modo_1:
-    MOV.B   #0x60, &0xA27       ; 1 at A6
-    MOV.B   #0x20, &0xA28
-    RET
-;-------------------------------------------------------
-; Subrutina: modo_2
-; Objetivo: Mascarilla del numero 2 display de modo
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Isander Paris 
-; Fecha:
-;-------------------------------------------------------
-modo_2:
-    MOV.B   #0xDB, &0xA27       ; 2 at A6
-    MOV.B   #0x00, &0xA28
-    RET
-;-------------------------------------------------------
-; Subrutina: modo_3
-; Objetivo: Mascarilla del numero 3 display de modo
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Isander Paris 
-; Fecha:
-;-------------------------------------------------------
-modo_3:
-    MOV.B   #0xF1, &0xA27       ; 3 at A6
-    MOV.B   #0x00, &0xA28
-    RET
-;-------------------------------------------------------
-; Subrutina: modo_4
-; Objetivo: Mascarilla del numero 4 display de modo
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Isander Paris 
-; Fecha:
-;-------------------------------------------------------
-modo_4:
-    MOV.B   #0x67, &0xA27       ; 4 at A6
-    MOV.B   #0x00, &0xA28
+Guardar_FREQ_Seleccionada:
+    MOV     R13, R5
+    MOV      #0, R13
     RET
 
-;-------------------------------------------------------
-; Subrutina: Desplazar_Opcion_Modo 
-; Objetivo: Desplazar las opciones de los modos que se
-; reflejan en el LCD
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Isander Paris 
-; Fecha:
-;-------------------------------------------------------
-Desplazar_Opcion_Modo:
-    MOV.B   &modoActual, R10
-    INC.B   R10
-    CMP.B   #5, R10
-    JNE     no_wrap
-    MOV.B   #0, R10
-;-------------------------------------------------------
-; Subrutina: no_wrap 
-; Objetivo: 
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Isander Paris 
-; Fecha:
-;-------------------------------------------------------
-no_wrap:
-    MOV.B   R10, &modoActual
-    RET
-;-------------------------------------------------------
-; Subrutina: Guardar_Modo_Seleccionado 
-; Objetivo: Desplazar las opciones de los modos que
-; se reflejan en el LCD
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Isander Paris 
-; Fecha:
-;-------------------------------------------------------
-Guardar_Modo_Seleccionado:
-    MOV.B   &modoActual, R10
-    MOV.B   R10, &modoSeleccionado
+Guardar_DIVFreq_Seleccionada:
+    MOV     R13, R7
+    MOV      #0, R13
     RET
 
-;-------------------------------------------------------
-; Subrutina: Desplazamiento 
-; Objetivo: Mueve el texto en el LCD hacia la izquierda
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Angelica Cruz 
-; Fecha:
-;-------------------------------------------------------
+;Guardar_InputNumber ????????????? R6
+;----------------------------------
+
+
+;=====================================================================================================================
+;
+; Esta subrutina verifica el valor de R13 (index del digito 0-9) y le asigna a R10 el numero que vamos a display en el LCD
+;
+Get_7Segment_Code:
+    
+    cmp     #1, R13
+    jeq     Code1
+    cmp     #2, R13
+    jeq     Code2
+    cmp     #3, R13
+    jeq     Code3
+    cmp     #4, R13
+    jeq     Code4
+    cmp     #5, R13
+    jeq     Code5
+    cmp     #6, R13
+    jeq     Code6
+    cmp     #7, R13
+    jeq     Code7
+    cmp     #8, R13
+    jeq     Code8
+    cmp     #9, R13
+    jeq     Code9
+
+    mov.b   #0xFC, R10
+    mov     #0, R13
+    ret                         ; 
+
+
+Code1:
+    mov.b   #0x60, R10          ; 1 
+    ret
+Code2:
+    mov.b   #0xDB, R10          ; 2 
+    ret
+Code3:
+    mov.b   #0xF1, R10          ; 3 
+    ret
+Code4:
+    mov.b   #0x67, R10          ; 4 
+    ret
+Code5:
+    mov.b   #0xB7, R10          ; 5 
+    ret
+Code6:
+    mov.b   #0xBF, R10          ; 6 
+    ret
+Code7:
+    mov.b   #0xE0, R10          ; 7 
+    ret
+Code8:
+    mov.b   #0xFF, R10          ; 8 
+    ret
+Code9:
+    mov.b   #0xE7, R10          ; 9             
+    ret
+;
+;
+;--------------------------------------------------------------------------------------------------------
+;
+;
+Blink_at_CurrentIndex:
+    ; Verifica si todavía estamos en pantalla de input
+    cmp.b   #3, R8
+    jne     Volver_MainLoop     ; Si ya no estamos en input, salir del blink
+    
+    ; Verifica el índice actual
+    cmp     #0, R9
+    jeq     Blink0
+    cmp     #1, R9
+    jeq     Blink1
+    cmp     #2, R9
+    jeq     Blink2
+    cmp     #3, R9
+    jeq     Blink3
+    cmp     #4, R9
+    jeq     Blink4
+
+    jmp     Blink_at_CurrentIndex          ; Sigue parpadeando
+
+Volver_MainLoop:
+    ret                         ; Volver al MAIN_LOOP
+
+Blink0:
+    mov.b   #0x00, &0x0A25      ; Apaga
+    CALL    #Delay_500ms
+    CALL    #Get_7Segment_Code
+    mov.b   R10, &0x0A25        ; Vuelve a escribir el mismo número
+    CALL    #Delay_500ms
+    jmp Blink_at_CurrentIndex
+
+Blink1:
+    mov.b   #0x00, &0x0A23      ; Apaga
+    CALL    #Delay_500ms
+    CALL    #Get_7Segment_Code
+    mov.b   R10, &0x0A23        ; Vuelve a escribir el mismo número
+    CALL    #Delay_500ms
+    jmp Blink_at_CurrentIndex
+
+Blink2:
+    mov.b   #0x00, &0x0A32      ; Apaga
+    CALL    #Delay_500ms
+    CALL    #Get_7Segment_Code
+    mov.b   R10, &0x0A32        ; Vuelve a escribir el mismo número
+    CALL    #Delay_500ms
+    jmp Blink_at_CurrentIndex
+
+Blink3:
+    mov.b   #0x00, &0x0A2E      ; Apaga
+    CALL    #Delay_500ms
+    CALL    #Get_7Segment_Code
+    mov.b   R10, &0x0A2E        ; Vuelve a escribir el mismo número
+    CALL    #Delay_500ms
+    jmp Blink_at_CurrentIndex
+
+Blink4:
+    mov.b   #0x00, &0x0A27      ; Apaga
+    CALL    #Delay_500ms
+    CALL    #Get_7Segment_Code
+    mov.b   R10, &0x0A27        ; Vuelve a escribir el mismo número
+    CALL    #Delay_500ms
+    jmp Blink_at_CurrentIndex
+
+;--------------------------------------------------------------------------------------------------------------------------
+
+
+;
+; Esta subrutina verifica en que index estamos del input number y hace display en ese indice del valor guardado en R10 con Get_7Segment_Code
+;                               0 1 2 3 4        indexes
+Display_at_index:            ;C 0 0 0 0 0        input number
+    cmp     #0, R9
+    jeq     Pos0
+    cmp     #1, R9
+    jeq     Pos1
+    cmp     #2, R9
+    jeq     Pos2
+    cmp     #3, R9
+    jeq     Pos3
+    cmp     #4, R9
+    jeq     Pos4
+    ret
+
+Pos0:                              
+    mov.b   R10, &0x0A25    
+    ret
+
+Pos1:
+    mov.b   R10, &0x0A23
+    ret
+
+Pos2:
+    mov.b   R10, &0x0A32
+    ret
+
+Pos3:
+    mov.b   R10, &0x0A2E
+    ret
+
+Pos4:
+    mov.b   R10, &0x0A27        ; Último dígito (más a la derecha)
+    ret
+
+
+Incrementar_InputNumber_Index;
+    inc   R9
+    ret 
+
+; hasta aqui funcionalidad input number
+;======================================================================================================================================
+
 Desplazamiento:
     CALL    #Actualiza_Display
     CALL    #Delay_500ms
     CALL    #Delay_500ms
     CALL    #Actualiza_Posicion
     RET
-;-------------------------------------------------------
-; Subrutina: Actualiza_Posicion 
-; Objetivo: Aumenta el índice R6 para avanzar el desplazamiento
-; Si llegamos al final del string, entonces reinicia el índice
-; a 0 para que el desplazmiento sea cíclico
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Angelica Cruz 
-; Fecha:
-;-------------------------------------------------------
+
 Actualiza_Posicion:
     INC.B   R6
     CMP.B   #44, R6 ;aqui
@@ -594,15 +757,7 @@ Actualiza_Posicion:
 no_reset:
     RET
 
-;-------------------------------------------------------
-; Subrutina: Actualiza_Display 
-; Objetivo: Actualiza el LCD con 6 caracters empezando en
-; el índice indicado
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Angelica Cruz 
-; Fecha:
-;-------------------------------------------------------
+
 Actualiza_Display:
             MOV.B   #pos1, R14         
             MOV.B   R6, R5             
@@ -658,673 +813,51 @@ CONT_5:     MOV.B   stringNamesH(R5), 0x0A20(R14)
 
             RET
 
-;-------------------------------------------------------
-; Subrutina: Delay_500ms 
-; Objetivo: Espera 500ms x 2 = 1s
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Camila Hernandez 
-; Fecha:
-;-------------------------------------------------------
+
+Delay_50ms
+            MOV.W   #5000, R15 
+            CALL    #Loop_Delay_50ms
+            RET            
+      
+Loop_Delay_50ms
+            DEC.W   R15                 
+            JNZ     Loop_Delay_50ms          
+            RET 
+
 Delay_500ms
             MOV.W   #50000, R15 
-;-------------------------------------------------------
-; Subrutina: Loop_Delay_500ms 
-; Objetivo: Espera 500ms x 2 = 1s
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Camila Hernandez 
-; Fecha:
-;-------------------------------------------------------       
+            CALL    #Loop_Delay_500ms
+            RET            
+      
 Loop_Delay_500ms
             DEC.W   R15                 
             JNZ     Loop_Delay_500ms          
             RET  
-;-------------------------------------------------------
-; Subrutina: Delay_20ms 
-; Objetivo: Espera 20ms (ajustable)
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Isander Paris 
-; Fecha:
-;-------------------------------------------------------
+
 Delay_20ms:
-    MOV     #5000, R15       ; Ajusta este valor si tu reloj es más rápido/lento
-;-------------------------------------------------------
-; Subrutina: Loop_Delay_20ms 
-; Objetivo: Espera 500ms x 2 = 1s
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Isander Paris 
-; Fecha:
-;------------------------------------------------------- 
+    MOV     #10000, R15       ; Ajusta este valor si tu reloj es más rápido/lento
+
 Loop_Delay_20ms:
     DEC     R15
     JNZ     Loop_Delay_20ms
     RET
 
-; === VARIABLES ===
-; R8–R12 = valores individuales para los 5 dígitos
-; R4 = índice del dígito actual (0–4)
-; R5 = valor temporal del dígito actual
-; R6 = posición en pantalla (0–5)
-; R7 = bandera de parpadeo ON/OFF
-; R13 = modo edición activo (1 = sí, 0 = no)
-
-;-------------------------------------------------------
-; Subrutina: SegmentTable
-; Objetivo: 
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Edgardo Valle 
-; Fecha: 20/abril/2025
-;------------------------------------------------------- 
-SegmentTable:
-    .byte   0x3F    ; 0
-    .byte   0x06    ; 1
-    .byte   0x5B    ; 2
-    .byte   0x4F    ; 3
-    .byte   0x66    ; 4
-    .byte   0x6D    ; 5
-    .byte   0x7D    ; 6
-    .byte   0x07    ; 7
-    .byte   0x7F    ; 8
-    .byte   0x6F    ; 9
-    .byte   0x39    ; 'C'
-
-; === Dirección base de los dígitos en el display ===
-LCD_BASE    .equ    0x0A20     ; Solo Prueba, podemos cambiarlo sino ajusta!!!!!!
-
-; === FUNCIONES ===
-;-------------------------------------------------------
-; Subrutina: DigitToDisplay
-; Objetivo: 
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Edgardo Valle 
-; Fecha: 20/abril/2025
-;------------------------------------------------------- 
-; Entrada: R5 = valor (0–9 o código de letra), R6 = posición (0–5)
-DigitToDisplay:
-    ; Si el valor es un espacio (para ocultar), lo mostramos vacío
-    cmp     #' ', R5
-    jeq     MostrarEspacio
-
-    ; Si es 'C' (67), usamos posición 10 de tabla
-    cmp     #'C', R5
-    jne     MostrarNumero
-    mov     #10, R7
-    jmp     CargarYMostrar
-;-------------------------------------------------------
-; Subrutina: MostrarNumero  
-; Objetivo: Convertir número a índice (0–9)
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Edgardo Valle 
-; Fecha: 20/abril/2025
-;------------------------------------------------------- 
-MostrarNumero:
-    mov     R5, R7
-;-------------------------------------------------------
-; Subrutina: CargarYMostrar 
-; Objetivo: 
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Edgardo Valle 
-; Fecha: 20/abril/2025
-;------------------------------------------------------- 
-CargarYMostrar:
-    ; Cargar valor de SegmentTable[R7]
-    ; Dirección: SegmentTable + R7
-    mov     #SegmentTable, R14
-    add     R7, R14
-    mov.b   @R14, R15           ; segmento en R15
-
-    ; Calcular dirección del dígito (LCD_BASE + R6)
-    mov     #LCD_BASE, R14
-    add     R6, R14
-    mov.b   R15, 0(R14)
-    ret
-;-------------------------------------------------------
-; Subrutina: MostrarEspacio
-; Objetivo: Mostrar 0x00 en esa posición
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Edgardo Valle 
-; Fecha: 20/abril/2025
-;------------------------------------------------------- 
-MostrarEspacio:
-    mov     #LCD_BASE, R14
-    add     R6, R14
-    mov.b   #0x00, 0(R14)
-    ret
-;-------------------------------------------------------
-; Subrutina: MostrarC00000 
-; Objetivo: Mostrar todos los caracteres de C00000
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Edgardo Valle 
-; Fecha: 20/abril/2025
-;------------------------------------------------------- 
-MostrarC00000:
-    mov     #'C', R5
-    mov     #0, R6
-    call    #DigitToDisplay
-
-    mov     R8, R5
-    mov     #1, R6
-    call    #DigitToDisplay
-
-    mov     R9, R5
-    mov     #2, R6
-    call    #DigitToDisplay
-
-    mov     R10, R5
-    mov     #3, R6
-    call    #DigitToDisplay
-
-    mov     R11, R5
-    mov     #4, R6
-    call    #DigitToDisplay
-
-    mov     R12, R5
-    mov     #5, R6
-    call    #DigitToDisplay
-    ret
-;-------------------------------------------------------
-; Subrutina: Init_Contador 
-; Objetivo: Iniciar edición de contador
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Edgardo Valle 
-; Fecha: 20/abril/2025
-;------------------------------------------------------- 
-Init_Contador:
-    mov     #0, R4
-    mov     #0, R5
-    mov     #1, R13
-    call    #MostrarC00000
-    call    #StartTimer250ms
-    jmp     Esperar_Salir_Contador
-;-------------------------------------------------------
-; Subrutina: Esperar_Salir_Contador 
-; Objetivo: Esperar fin de edición
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Edgardo Valle 
-; Fecha: 20/abril/2025
-;------------------------------------------------------- 
-Esperar_Salir_Contador:
-    cmp     #1, R13
-    jeq      Esperar_Salir_Contador
-    ret
-;-------------------------------------------------------
-; Subrutina: TimerA0_ISR 
-; Objetivo: ISR TIMER A0 (250ms)
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Edgardo Valle 
-; Fecha: 20/abril/2025
-;------------------------------------------------------- 
-TimerA0_ISR:
-    cmp     #1, R13
-    jne     Salir_TimerA0_ISR
-
-    xor     #1, R7             ; alterna parpadeo
-    mov     R4, R6
-    cmp     #0, R7
-    jeq      OcultarDigito
-
-    call    #GetDigitoValor
-    call    #DigitToDisplay
-    jmp     Salir_TimerA0_ISR
-;-------------------------------------------------------
-; Subrutina: OcultarDigito 
-; Objetivo: 
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Edgardo Valle 
-; Fecha: 20/abril/2025
-;------------------------------------------------------- 
-OcultarDigito:
-    mov     #' ', R5
-    call    #DigitToDisplay
-;-------------------------------------------------------
-; Subrutina: Salir_TimerA0_ISR 
-; Objetivo: 
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Edgardo Valle 
-; Fecha: 20/abril/2025
-;------------------------------------------------------- 
 Salir_TimerA0_ISR:
     reti
-;-------------------------------------------------------
-; Subrutina: port1_ISR
-; Objetivo: ISR de Botones
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Edgardo Valle 
-; Fecha: 20/abril/2025
-;------------------------------------------------------- 
-port1_ISR:
-    bit     #BIT1, &P1IFG
-    jz      S2_ISR_Handler
-    bic     #BIT1, &P1IFG
 
-    call    #GetDigitoValor
-    inc     R5
-    cmp     #10, R5
-    jl      NoReset
-    mov     #0, R5
-;-------------------------------------------------------
-; Subrutina: NoReset 
-; Objetivo: 
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Edgardo Valle 
-; Fecha: 20/abril/2025
-;------------------------------------------------------- 
-NoReset:
-    call    #SetDigitoValor
-    ret
-;-------------------------------------------------------
-; Subrutina: S2_ISR_Handler 
-; Objetivo: 
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Edgardo Valle 
-; Fecha: 20/abril/2025
-;------------------------------------------------------- 
-S2_ISR_Handler:
-    bit     #BIT2, &P1IFG
-    jz      Fin_ISR
-    bic     #BIT2, &P1IFG
-
-    call    #GetDigitoValor
-    call    #SetDigitoValor
-
-    inc     R4
-    cmp     #5, R4
-    jl      Fin_ISR
-
-    mov     #0, R13
-    call    #StopTimerA0
-    call    #MostrarFREQ0
-;-------------------------------------------------------
-; Subrutina: Fin_ISR  
-; Objetivo: 
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Edgardo Valle 
-; Fecha: 20/abril/2025
-;------------------------------------------------------- 
-Fin_ISR:
-    reti
-;-------------------------------------------------------
-; Subrutina: GetDigitoValor 
-; Objetivo: Obtener valor del dígito actual
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Edgardo Valle 
-; Fecha: 20/abril/2025
-;------------------------------------------------------- 
-GetDigitoValor:
-    cmp     #0, R4
-    jeq      LoadR8
-    cmp     #1, R4
-    jeq      LoadR9
-    cmp     #2, R4
-    jeq      LoadR10
-    cmp     #3, R4
-    jeq      LoadR11
-    cmp     #4, R4
-    jeq      LoadR12
-    ret
-;-------------------------------------------------------
-; Subrutina: LoadR8  
-; Objetivo: 
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Edgardo Valle 
-; Fecha: 20/abril/2025
-;------------------------------------------------------- 
-LoadR8:  mov R8, R5  ; temp en R5
-    ret
-;-------------------------------------------------------
-; Subrutina: LoadR9 
-; Objetivo: 
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Edgardo Valle 
-; Fecha: 20/abril/2025
-;------------------------------------------------------- 
-LoadR9:  mov R9, R5
-    ret
-;-------------------------------------------------------
-; Subrutina: LoadR10 
-; Objetivo: 
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Edgardo Valle 
-; Fecha: 20/abril/2025
-;------------------------------------------------------- 
-LoadR10: mov R10, R5
-    ret
-;-------------------------------------------------------
-; Subrutina: LoadR11 
-; Objetivo: 
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Edgardo Valle 
-; Fecha: 20/abril/2025
-;------------------------------------------------------- 
-LoadR11: mov R11, R5
-    ret
-;-------------------------------------------------------
-; Subrutina: LoadR12 
-; Objetivo: 
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Edgardo Valle 
-; Fecha: 20/abril/2025
-;------------------------------------------------------- 
-LoadR12: mov R12, R5
-    ret
-;-------------------------------------------------------
-; Subrutina: SetDigitoValor 
-; Objetivo: Guardar valor del dígito actual
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Edgardo Valle 
-; Fecha: 20/abril/2025
-;------------------------------------------------------- 
-SetDigitoValor:
-    cmp     #0, R4
-    jeq      SaveR8
-    cmp     #1, R4
-    jeq      SaveR9
-    cmp     #2, R4
-    jeq      SaveR10
-    cmp     #3, R4
-    jeq      SaveR11
-    cmp     #4, R4
-    jeq      SaveR12
-    ret
-;-------------------------------------------------------
-; Subrutina: SaveR8 
-; Objetivo: 
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Edgardo Valle 
-; Fecha: 20/abril/2025
-;------------------------------------------------------- 
-SaveR8:  mov R5, R8
-    ret
-;-------------------------------------------------------
-; Subrutina: SaveR9 
-; Objetivo: 
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Edgardo Valle 
-; Fecha: 20/abril/2025
-;------------------------------------------------------- 
-SaveR9:  mov R5, R9
-    ret
-;-------------------------------------------------------
-; Subrutina: SaveR10 
-; Objetivo: 
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Edgardo Valle 
-; Fecha: 20/abril/2025
-;------------------------------------------------------- 
-SaveR10: mov R5, R10
-    ret
-;-------------------------------------------------------
-; Subrutina: SaveR11 
-; Objetivo: 
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Edgardo Valle 
-; Fecha: 20/abril/2025
-;------------------------------------------------------- 
-SaveR11: mov R5, R11
-    ret
-;-------------------------------------------------------
-; Subrutina: SaveR12 
-; Objetivo: 
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Edgardo Valle 
-; Fecha: 20/abril/2025
-;------------------------------------------------------- 
-SaveR12: mov R5, R12
-    ret
-;-------------------------------------------------------
-; Subrutina: MostrarFREQ0 
-; Objetivo: Mostrar texto al finalizar edición
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Edgardo Valle 
-; Fecha: 20/abril/2025
-;------------------------------------------------------- 
-MostrarFREQ0:
-    ; Mostrar 'FREQ_0'
-
-    ret
-;-------------------------------------------------------
-; Subrutina: StartTimer250ms 
-; Objetivo: Timer 250ms usando ACLK
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Edgardo Valle 
-; Fecha: 20/abril/2025
-;------------------------------------------------------- 
 StartTimer250ms:
     mov     #TASSEL_1 + MC_1 + ID_3, &TA0CTL ; ACLK, up, /8
     mov     #8192, &TA0CCR0
     mov     #CCIE, &TA0CCTL0
     ret
-;-------------------------------------------------------
-; Subrutina: StopTimerA0 
-; Objetivo: 
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Edgardo Valle 
-; Fecha: 20/abril/2025
-;------------------------------------------------------- 
+
 StopTimerA0:
     bic     #MC_1, &TA0CTL
     bic     #CCIE, &TA0CCTL0
     ret
 
-;-------------------------------------------------------
-; Subrutina: freq2_s1_bajada 
-; Objetivo: 
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Camila Hernández
-; Fecha: 21/abril/2025
-;------------------------------------------------------- 
-freq2_s1_bajada:
-    bis.b   #BIT0, &P1OUT
-    CALL    #Desplazar_Opcion_FREQ
-    CALL    #Display_Opcion_FREQ
-    jmp     fin_ISR
-;-------------------------------------------------------
-; Subrutina: freq1_s2_bajada 
-; Objetivo: 
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Camila Hernández
-; Fecha: 21/abril/2025
-;------------------------------------------------------- 
-freq1_s2_bajada:
-    bis.b   #BIT7, &P9OUT
-    MOV.B   #2, &modoOP
-    CALL    #Display_FREQ
-    CALL    #Desplazar_Opcion_FREQ
-    jmp     fin_ISR
-;-------------------------------------------------------
-; Subrutina: freq2_s2_bajada 
-; Objetivo: 
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Camila Hernández
-; Fecha: 21/abril/2025
-;------------------------------------------------------- 
-freq2_s2_bajada:
-    bis.b   #BIT7, &P9OUT
-    MOV.B   #3, &modoOP
-    CALL    #Guardar_FREQ_Seleccionada
-;-------------------------------------------------------
-; Subrutina: Display_FREQ 
-; Objetivo: 
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Camila Hernández
-; Fecha: 21/abril/2025
-;------------------------------------------------------- 
-Display_FREQ 
-            MOV.B   #0x8F, &0xA29               ; "F" at A1
-            MOV.B   #0x00, &0xA2A
 
-            MOV.B   #0xCF, &0xA25               ; "R" at A2
-            MOV.B   #0x02, &0xA26 
 
-            MOV.B   #0x9F, &0xA23               ; E at A3
-            MOV.B   #0x00, &0xA24
-
-            MOV.B   #0xFC, &0xA32               ; Q at A4
-            MOV.B   #0x82, &0xA33
-
-            MOV.B   #0x10, &0xA2E               ; _ at A5
-            MOV.B   #0x00, &0xA2F
-
-            MOV.B   #0x00, &0xA27               ; 0 at A6
-            MOV.B   #0x00, &0xA28
-
-            RET  
-;-------------------------------------------------------
-; Subrutina: Display_Opcion_FREQ 
-; Objetivo: 
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Camila Hernández
-; Fecha: 21/abril/2025
-;------------------------------------------------------- 
-Display_Opcion_FREQ:
-    MOV.B   &freqActual, R10
-
-    CMP.B   #0, R10
-    JEQ     FREQ_0
-    CMP.B   #1, R10
-    JEQ     FREQ_1
-    CMP.B   #2, R10
-    JEQ     FREQ_2
-    CMP.B   #3, R10
-    JEQ     FREQ_3
-    CMP.B   #4, R10
-    JEQ     FREQ_4
-    RET
-;-------------------------------------------------------
-; Subrutina: FREQ_0 
-; Objetivo: 
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Camila Hernández
-; Fecha: 21/abril/2025
-;------------------------------------------------------- 
-FREQ_0:
-    MOV.B   #0xFC, &0xA27       ; 0 at A6
-    MOV.B   #0x00, &0xA28
-    RET
-;-------------------------------------------------------
-; Subrutina: FREQ_1 
-; Objetivo: 
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Camila Hernández
-; Fecha: 21/abril/2025
-;------------------------------------------------------- 
-FREQ_1:
-    MOV.B   #0x60, &0xA27       ; 1 at A6
-    MOV.B   #0x20, &0xA28
-    RET
-;-------------------------------------------------------
-; Subrutina: FREQ_2 
-; Objetivo: 
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Camila Hernández
-; Fecha: 21/abril/2025
-;------------------------------------------------------- 
-FREQ_2:
-    MOV.B   #0xDB, &0xA27       ; 2 at A6
-    MOV.B   #0x00, &0xA28
-    RET
-;-------------------------------------------------------
-; Subrutina: FREQ_3 
-; Objetivo: 
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Camila Hernández
-; Fecha: 21/abril/2025
-;------------------------------------------------------- 
-FREQ_3:
-    MOV.B   #0xF1, &0xA27       ; 3 at A6
-    MOV.B   #0x00, &0xA28
-    RET
-;-------------------------------------------------------
-; Subrutina: FREQ_4 
-; Objetivo: 
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Camila Hernández
-; Fecha: 21/abril/2025
-;------------------------------------------------------- 
-FREQ_4:
-    MOV.B   #0x67, &0xA27       ; 4 at A6
-    MOV.B   #0x00, &0xA28
-    RET
-;-------------------------------------------------------
-; Subrutina: Desplazar_Opcion_FREQ 
-; Objetivo: 
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Camila Hernández
-; Fecha: 21/abril/2025
-;------------------------------------------------------- 
-Desplazar_Opcion_FREQ:
-    MOV.B   &freqActual, R10
-    INC.B   R10
-    CMP.B   #5, R10
-    JNE     no_wrap_freq
-    MOV.B   #0, R10
-;-------------------------------------------------------
-; Subrutina: no_wrap_freq 
-; Objetivo: 
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Camila Hernández
-; Fecha: 21/abril/2025
-;------------------------------------------------------- 
-no_wrap_freq:
-    MOV.B   R10, &freqActual
-    RET
-;-------------------------------------------------------
-; Subrutina: Guardar_FREQ_Seleccionada 
-; Objetivo: 
-; Pre-condiciones:
-; Post-condiciones:
-; Autor: Camila Hernández
-; Fecha: 21/abril/2025
-;------------------------------------------------------- 
-Guardar_FREQ_Seleccionada:
-    MOV.B   &freqActual, R10
-    MOV.B   R10, &freqSeleccionado
-    RET
 
 ;------------------------------------------------------------------------------=
             .global __STACK_END
