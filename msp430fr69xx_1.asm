@@ -104,6 +104,7 @@ Init_Buttons
     RET
 
 Init_REgisters:             ; anadir aqui todos los registros que usamos
+    mov     #0, R6
     mov     #0, R8
     mov     #0, R9
     mov     #0, R10
@@ -217,6 +218,7 @@ screen3_s1_bajada:                          ;   Input Number
     CALL    #Increment_Display_Digit
     CALL    #Get_7Segment_Code
     CALL    #Display_at_index
+    CALL    #Guardar_InputNumber
     jmp     fin_ISR
 
 screen4_s1_bajada:                         ; Frequency
@@ -307,6 +309,7 @@ screen3_s2_bajada:                          ; input number
    
 cambiar_screen:
     MOV.B   #4, R8
+    mov     #0, R9
     mov     #0, R13         ;reset digit index
     CALL    #Display_FREQ
     CALL    #DisplayDigit_en_A6
@@ -856,6 +859,110 @@ StopTimerA0:
     bic     #CCIE, &TA0CCTL0
     ret
 
+
+
+; Subrutina para guardar el dígito ingresado en R6 según su posición
+Guardar_InputNumber:
+    ; Guardar registros usados temporalmente
+    push    R14
+    push    R15
+
+    ; Validar que R13 esté en el rango 0-9
+    cmp     #10, R13
+    jge     End_Guardar_InputNumber
+
+    ; Verificar el índice actual (R9) para determinar la potencia de 10
+    cmp     #0, R9
+    jeq     Pos_10000
+    cmp     #1, R9
+    jeq     Pos_1000
+    cmp     #2, R9
+    jeq     Pos_100
+    cmp     #3, R9
+    jeq     Pos_10
+    cmp     #4, R9
+    jeq     Pos_1
+
+    ; Si R9 no es válido, salir
+    jmp     End_Guardar_InputNumber
+
+Pos_10000:
+    ; Calcular R13 * 10000
+    mov     R13, R14        ; Copiar dígito a R14
+    mov     #0, R15         ; Acumulador para el resultado
+    mov     #10, R12        ; Contador para 10 iteraciones (para *1000)
+    call    #Calc_1000      ; R15 = R13 * 1000
+    mov     R15, R14        ; Copiar resultado intermedio
+    mov     #0, R15         ; Reiniciar acumulador
+    mov     #10, R12        ; Contador para 10 iteraciones (para *10)
+    call    #Calc_10        ; R15 = (R13 * 1000) * 10 = R13 * 10000
+    add     R15, R6         ; Sumar a R6
+    jmp     End_Guardar_InputNumber
+
+Pos_1000:
+    ; Calcular R13 * 1000
+    mov     R13, R14
+    mov     #0, R15
+    mov     #10, R12
+    call    #Calc_1000      ; R15 = R13 * 1000
+    add     R15, R6
+    jmp     End_Guardar_InputNumber
+
+Pos_100:
+    ; Calcular R13 * 100
+    mov     R13, R14
+    mov     #0, R15
+    mov     #10, R12
+    call    #Calc_100       ; R15 = R13 * 100
+    add     R15, R6
+    jmp     End_Guardar_InputNumber
+
+Pos_10:
+    ; Calcular R13 * 10
+    mov     R13, R14
+    mov     #0, R15
+    mov     #10, R12
+    call    #Calc_10        ; R15 = R13 * 10
+    add     R15, R6
+    jmp     End_Guardar_InputNumber
+
+Pos_1:
+    ; Sumar directamente el dígito (R13 * 1)
+    add     R13, R6
+    jmp     End_Guardar_InputNumber
+
+; Subrutina auxiliar para calcular R14 * 10, resultado en R15
+Calc_10:
+    ; R15 += R14 * 10 = (R14 << 3) + (R14 << 1)
+    mov     R14, R15
+    rla     R15             ; R15 = R14 * 2
+    rla     R15             ; R15 = R14 * 4
+    rla     R15             ; R15 = R14 * 8
+    add     R14, R15        ; R15 = (R14 * 8) + R14
+    add     R14, R15        ; R15 = (R14 * 8) + (R14 * 2) = R14 * 10
+    ret
+
+; Subrutina auxiliar para calcular R14 * 100, resultado en R15
+Calc_100:
+    ; R15 = (R14 * 10) * 10
+    call    #Calc_10        ; R15 = R14 * 10
+    mov     R15, R14        ; Preparar para siguiente *10
+    call    #Calc_10        ; R15 = (R14 * 10) * 10 = R14 * 100
+    ret
+
+; Subrutina auxiliar para calcular R14 * 1000, resultado en R15
+Calc_1000:
+    ; R15 = (R14 * 100) * 10
+    call    #Calc_100       ; R15 = R14 * 100
+    mov     R15, R14        ; Preparar para siguiente *10
+    call    #Calc_10        ; R15 = (R14 * 100) * 10 = R14 * 1000
+    ret
+
+End_Guardar_InputNumber:
+    ; Restaurar registros
+    pop     R15
+    pop     R14
+    ret
 
 
 
